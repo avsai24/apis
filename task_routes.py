@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import Task, TaskDB, UserCreate, UserOut, UserDB
-from auth import hash_password, verify_password, create_access_token
+from auth import hash_password, verify_password, create_access_token, get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import status
 
@@ -16,16 +16,19 @@ def get_db():
         db.close()
 
 @router.get("/tasks")
-def get_tasks(db: Session = Depends(get_db)):
-    tasks = db.query(TaskDB).all()
-    return tasks
+def get_tasks(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    return db.query(TaskDB).filter(TaskDB.user_id == current_user.id).all()
 
 @router.post("/tasks")
-def add_task(task: Task, db: Session = Depends(get_db)):
-    new_task = TaskDB(title=task.title, completed=task.completed)
+def create_task(task: Task, db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    new_task = TaskDB(
+        title=task.title,
+        completed=task.completed,
+        user_id=current_user.id 
+    )
     db.add(new_task)
     db.commit()
-    db.refresh(new_task) 
+    db.refresh(new_task)
     return new_task
 
 @router.put("/tasks/{task_id}")
@@ -73,3 +76,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     token = create_access_token({"sub": user.email})
 
     return {"access_token": token, "token_type": "bearer"}
+
+@router.get("/me")
+def get_tasks(db: Session = Depends(get_db), current_user: UserDB = Depends(get_current_user)):
+    return db.query(TaskDB).all()
+
